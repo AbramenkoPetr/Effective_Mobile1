@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Home Page</title>
+</head>
+<body>
+    
+    <div class="form" style=" height: auto; margin-bottom: 20px;">
+    <form  id="myForm" novalidate style="margin-bottom: 20px;">
+      <input placeholder="ФИО" type="text"  name="name" required>
+      <input placeholder="Дата рождения гггг-мм-дд" type="text" name="date_of_birth" required>
+      <input placeholder="email" type="text" name="email" required>
+      <input placeholder="Пароль" type="text" name="password" required>
+      <input placeholder="Роль admin или user" type="text" name="role" list="options" required>
+      <input  style="background-color: blue; color: white; height: 26px; width: 80px;" 
+      type="submit" [disabled]="myForm.invalid" value="Add user" />
+    </form>
+    <datalist id="options">
+        <option value="user">
+        <option value="admin">
+    </datalist>
+    <form  id="form_auth" style="margin-bottom: 20px;">
+      
+      <input placeholder="email" type="text" name="email" required>
+      <input placeholder="Пароль" type="text" name="password" required>
+      <input  style="background-color: blue; color: white; height: 26px; width: 100px;" 
+      type="submit" [disabled]="myForm.invalid" value="Авторизация" />
+    </form>
+    <form  id="user_id" style="margin-bottom: 20px;">
+      
+      <input placeholder="id" type="number" name="id" required>
+      <input  style="background-color: blue; color: white; height: 26px; width: 100px;" 
+      type="submit"  value="Get user by id" />
+    </form>
+    <form  id="blocking_id" style="margin-bottom: 20px;">
+      
+      <input placeholder="id" type="number" name="id" required>
+      <input  style="background-color: blue; color: white; height: 26px; width: 160px;" 
+      type="submit"  value="Блокировка юзера по id" />
+    </form>
+    <button onclick="getAllUsers()">Get all users</button>
+  </div>
+    <div class="message">
+    <p ></p>
+    </div>
+</body>
+</html>
+
+<script>
+  const form = document.getElementById('myForm');
+  const form_auth = document.getElementById('form_auth');
+  const form_user_id = document.getElementById('user_id');
+    const form_message = document.querySelector('.message')
+  form.addEventListener('submit', function(event) {
+    event.preventDefault(); // Предотвращаем отправку формы
+
+    const formData = new FormData(form);
+    console.log('name:', formData.get('name'));
+    console.log('Password:', formData.get('password'));
+    fetch('http://localhost:8080/api/users', 
+    { method: 'POST', 
+    headers: { 'Content-Type': 'application/json' }, 
+    body: JSON.stringify({ 
+        name: formData.get('name'), 
+        date_of_birth: formData.get('date_of_birth'), 
+        email: formData.get('email'),
+        password: formData.get('password'),
+        role: formData.get('role'),
+        
+        }) 
+    }) 
+    .then(response => response./*json*/text()) 
+    .then(data => {
+      form.reset();
+        console.log(data);
+        if(data === 'Не валидная дата рождения') {view(data); return;}
+        if(data === 'email уже сущкствует') {view(data); return;}
+        if(data === 'Не валидный email') {view(data); return;}
+        view('Пользователь зарегистрирован id = ' + data.id);
+    }) 
+    .catch(error => console.error('Fetch error:', error))  
+
+  });
+
+
+  //авторизация пользователя
+  form_auth.addEventListener('submit', function(event) {
+    event.preventDefault(); // Предотвращаем отправку формы
+    
+    const formData = new FormData(form_auth);
+    console.log('email:', formData.get('email'));
+    console.log('Password:', formData.get('password'));
+
+    fetch('http://localhost:8080/api/users/auth', 
+    { method: 'POST', 
+    headers: { 'Content-Type': 'application/json' }, 
+    body: JSON.stringify({ 
+        
+        email: formData.get('email'),
+        password: formData.get('password')
+        
+        }) 
+    }) 
+    .then(response => response.text())
+    
+    .then(data => {
+        let token = data;
+        console.log('form_auth token ',token);
+        if(!token ) {
+          console.log('form_auth then token ', token);
+        view("Нет такого пользователя"); 
+        return;
+        }
+        if(token === 'Вы заблокированы') {
+          console.log('form_auth then token ', token);
+        view(token); 
+        return;
+        }
+        if(token === 'Не правильный password') {
+          console.log('form_auth then token ', token);
+        view(token); 
+        return;
+        }
+        if(token === 'email не существует') {
+          console.log('form_auth then token ', token);
+        view(token); 
+        return;
+        }
+        localStorage.setItem('token', data);
+        /*form_message.innerHTML =*/ view('Пользователь авторизован token в localStorage');
+        form_auth.reset();
+    }) 
+    .catch(error => console.error('Fetch error:', error))  
+
+  });
+
+  
+  //Получение пользователя по id
+  form_user_id.addEventListener('submit', function(event) {
+    event.preventDefault(); // Предотвращаем отправку 
+    let token = localStorage.getItem('token');
+    if(!validatorISO_8859_1(token))  {view('Пользователь не авторизован'); return;}
+    const formData = new FormData(form_user_id);
+    console.log('id:', formData.get('id'));
+    //console.log('Password:', formData.get('password'));
+    fetch('http://localhost:8080/api/users/one?id='+formData.get('id'), 
+    { 
+    headers: {  'x-auth': localStorage.getItem('token') }, 
+    
+    }) 
+    .then(response => response.text()) 
+    .then(data => {
+        console.log('data ', data);
+        view(data)
+    }) 
+    .catch(error => console.error('Fetch error:', error))  
+
+  });
+
+
+  //блокировка ролбзователя по id
+  blocking_id.addEventListener('submit', function(event) {
+    event.preventDefault(); // Предотвращаем отправку формы
+
+    const formData = new FormData(blocking_id);
+    console.log('blocking_id id:', formData.get('id'));
+    //console.log('Password:', formData.get('password'));
+    let token = localStorage.getItem('token')
+    console.log('blocking_id token', token, /*token.length*/);
+    console.log('blocking_id token', token === null, token == null, token !== null, token != null);
+    //if(token === null)    {form_message.innerHTML = 'Пользователь не авторизован'; return;}
+    if(token === null)    {view('Пользователь не авторизован'); return;}
+    fetch('http://localhost:8080/api/users/blocking?id='+formData.get('id'), 
+    { 
+    headers: { 'x-auth': localStorage.getItem('token') }, 
+    
+    }) 
+    .then(response => response.text()) 
+    .then(data => {
+        console.log('data ', data);
+        view(data)
+        
+    }) 
+    .catch(error => console.error('Fetch error:', error))  
+
+  });
+
+
+  function getAllUsers()    {
+    let token = localStorage.getItem('token');
+    if(!validatorISO_8859_1(token))  {view('Пользователь не авторизован'); return;}
+    fetch('http://localhost:8080/api/users', 
+    { /*method: 'GET', */
+    headers: { /*'Content-Type': 'application/json',*/ 'x-auth': token }, 
+    
+    }) 
+    
+    .then(response => response.text())
+    .then(data_res => {
+        console.log('data_res ', data_res);
+        let data
+        if(data_res[0] === '[') data = JSON.parse(data_res);
+        else data = data_res;
+      console.log('data ', data)
+        if(!Array.isArray(data))  {
+           
+          view((data));
+          return;
+        }
+        
+        let item = '<pre>id        name             email         role      status</pre>'
+        for (let j in data) {
+        
+        item += '<pre>'+ data[j].id+'  ' + data[j].name+'  ' + data[j].email 
+           +'   '+data[j].role+'   '+data[j].status+   '</pre>';
+        //console.log('data ', data[j]);
+           };
+        view(item);  
+        
+        
+
+    }) 
+    .catch(error => console.error('Fetch error:', error))
+  }
+
+  function view(item) {
+    //console.log('view item ', item);
+    //if(item.msg)  {form_message.innerHTML = item.msg; return;}
+    if (item instanceof Object) {form_message.innerHTML = (JSON.stringify(item)); return;}
+    form_message.innerHTML = item;
+  }
+
+  function validatorISO_8859_1(str) {
+  return !/[^\u0000-\u00ff]/g.test(str);
+}
+  
+
+
+</script>
